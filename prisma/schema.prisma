@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  ADMIN
+  FOTOGRAFER
+  PELANGGAN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ON_PROGRESS
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum PhotographerStatus {
+  AVAILABLE
+  ON_DUTY
+  LEAVE
+  INACTIVE
+}
+
+enum PaymentMethod {
+  TRANSFER
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  DP
+  LUNAS
+  GAGAL
+}
+
+enum QueueStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  name        RoleType  @unique
+  description String?
+  users       User[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@map("roles")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  roleId        String    @map("role_id")
+  name          String
+  email         String    @unique
+  password      String
+  phoneNumber   String?   @map("phone_number")
+  
+  role          Role      @relation(fields: [roleId], references: [id])
+  bookings      Booking[]
+  photographerBookings Booking[] @relation("PhotographerBookings")
+  activityLogs  ActivityLog[]
+  images        Image[]
+  photographerProfile PhotographerProfile?
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@index([email])
+  @@index([roleId])
+  @@map("users")
+}
+
+model Package {
+  id            String    @id @default(uuid())
+  name          String
+  price         Decimal   @db.Decimal(10, 2)
+  printCount    Int       @map("print_count")
+  duration      Int       @default(60) // Durasi dalam menit
+  description   String    @db.Text
+  features      String?   @db.Text
+  isPopular     Boolean   @default(false) @map("is_popular")
+  ctaText       String?   @default("Pilih Paket") @map("cta_text")
+  isActive      Boolean   @default(true) @map("is_active")
+  studioId      String?   @map("studio_id")
+  
+  studio        Studio?   @relation(fields: [studioId], references: [id])
+  bookings      Booking[]
+  images        Image[]
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@map("packages")
+}
+
+model Booking {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  packageId     String    @map("package_id")
+  bookingDate   DateTime  @db.Date @map("booking_date")
+  bookingTime   String    @map("booking_time")
+  endTime       String?   @map("end_time") // Dihitung dari bookingTime + duration
+  status        BookingStatus @default(PENDING)
+  totalPrice    Decimal   @db.Decimal(10, 2) @map("total_price")
+  photographerId String?   @map("photographer_id")
+  promoCode      String?   @map("promo_code")
+  discountAmount Decimal?  @db.Decimal(10, 2) @map("discount_amount")
+  gdriveLink     String?   @map("gdrive_link")
+  reviewRating   Int?      @map("review_rating")
+  reviewComment  String?   @db.Text @map("review_comment")
+  printSelection String?   @db.Text @map("print_selection")
+  shippingAddress String?  @db.Text @map("shipping_address")
+  printStatus     String?  @map("print_status")
+  printPhotos     String?  @db.Text @map("print_photos")
+
+  user          User      @relation(fields: [userId], references: [id])
+  photographer  User?     @relation("PhotographerBookings", fields: [photographerId], references: [id])
+  package       Package   @relation(fields: [packageId], references: [id])
+  payment       Payment?
+  queue         Queue?
+  gallery       Gallery?
+  images        Image[]
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@index([userId])
+  @@index([packageId])
+  @@index([bookingDate])
+  @@index([photographerId])
+  @@map("bookings")
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  bookingId     String    @unique @map("booking_id")
+  method        PaymentMethod
+  proofUrl      String?   @map("proof_url")
+  status        PaymentStatus @default(PENDING)
+  amount        Decimal   @db.Decimal(10, 2)
+
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@map("payments")
+}
+
+model Queue {
+  id            String    @id @default(uuid())
+  bookingId     String    @unique @map("booking_id")
+  status        QueueStatus @default(WAITING)
+  checkInTime   DateTime  @default(now()) @map("check_in_time")
+
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@map("queues")
+}
+
+model Gallery {
+  id            String    @id @default(uuid())
+  bookingId     String    @unique @map("booking_id")
+  folderPath    String    @map("folder_path")
+  isWatermarked Boolean   @default(true) @map("is_watermarked")
+
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+  images        GalleryImage[]
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@map("galleries")
+}
+
+model GalleryImage {
+  id            String    @id @default(uuid())
+  galleryId     String    @map("gallery_id")
+  filePath      String    @map("file_path")
+  fileName      String    @map("file_name")
+  uploadedBy    String    @map("uploaded_by") // e.g. Fotografer ID
+
+  gallery       Gallery   @relation(fields: [galleryId], references: [id])
+  printSelection PrintSelection?
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@index([galleryId])
+  @@map("gallery_images")
+}
+
+model PrintSelection {
+  id              String    @id @default(uuid())
+  galleryImageId  String    @unique @map("gallery_image_id")
+  isPrinted       Boolean   @default(false) @map("is_printed")
+
+  galleryImage    GalleryImage @relation(fields: [galleryImageId], references: [id])
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  @@map("print_selections")
+}
+
+model SystemSetting {
+  id          String    @id @default(uuid())
+  key         String    @unique
+  value       String    @db.Text
+  description String?
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  userId      String?   @map("user_id")
+  action      String
+  description String    @db.Text
+
+  user        User?     @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("activity_logs")
+}
+
+
+
+model LandingFeature {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  icon        String   @default("Sparkles")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_features")
+}
+
+model LandingStep {
+  id          String   @id @default(uuid())
+  stepNumber  Int      @map("step_number")
+  title       String
+  description String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_steps")
+}
+
+model LandingFaq {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_faqs")
+}
+
+model Image {
+  id          String    @id @default(uuid())
+  url         String    @db.Text
+  packageId   String?   @map("package_id")
+  userId      String?   @map("user_id")
+  bookingId   String?   @map("booking_id")
+  
+  package     Package?  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking     Booking?  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([packageId])
+  @@index([userId])
+  @@index([bookingId])
+  @@map("images")
+}
+
+model PasswordResetOtp {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_otps")
+}
+
+model Studio {
+  id          String    @id @default(uuid())
+  name        String
+  description String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  
+  packages    Package[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@map("studios")
+}
+
+model PhotographerProfile {
+  id              String    @id @default(uuid())
+  userId          String    @unique @map("user_id")
+  gender          String?
+  address         String?   @db.Text
+  joinedDate      DateTime  @default(now()) @map("joined_date")
+  specialization  String?   @db.Text
+  experienceYears Int?      @default(0) @map("experience_years")
+  certification   String?   @db.Text
+  portfolioUrl    String?   @map("portfolio_url")
+  description     String?   @db.Text
+  status          PhotographerStatus @default(AVAILABLE)
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("photographer_profiles")
+}

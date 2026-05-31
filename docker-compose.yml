@@ -1,0 +1,39 @@
+services:
+
+  db:
+    image: postgres:15-alpine
+    container_name: photobooth_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: photobooth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d photobooth_db" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: always
+
+  app:
+    build: .
+    container_name: photobooth_app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:secret@db:5432/photobooth_db?schema=public
+    volumes:
+      - app_uploads:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  db_data:
+  app_uploads:
