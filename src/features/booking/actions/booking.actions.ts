@@ -397,7 +397,7 @@ export async function rescheduleBooking(bookingId: string, newDate: string, newT
 
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { user: true }
+      include: { user: true, package: true }
     });
 
     if (!booking) throw new Error("Booking tidak ditemukan");
