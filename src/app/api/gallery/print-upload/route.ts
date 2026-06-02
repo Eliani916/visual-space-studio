@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import fs from "fs/promises";
-import path from "path";
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(req: Request) {
   try {
@@ -52,10 +57,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: `Jumlah foto melebihi limit paket Anda (${printLimit} lembar)` }, { status: 400 });
     }
 
-    // Create print upload directory
-    const printDir = path.join(process.cwd(), "public", "uploads", bookingId, "print");
-    await fs.mkdir(printDir, { recursive: true });
-
     // Save files
     const savedUrls: string[] = [];
     for (let i = 0; i < files.length; i++) {
@@ -63,14 +64,25 @@ export async function POST(req: Request) {
       const buffer = Buffer.from(await file.arrayBuffer());
       
       // Sanitized unique file name
-      const ext = path.extname(file.name) || ".jpg";
-      const fileName = `print_${i + 1}_${Date.now()}${ext}`;
-      const filePath = path.join(printDir, fileName);
+      const fileName = `print_${i + 1}_${Date.now()}`;
 
-      await fs.writeFile(filePath, buffer);
-      
-      // Web relative path
-      savedUrls.push(`/uploads/${bookingId}/print/${fileName}`);
+      // Upload to cloudinary
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: `visual_space/prints/${bookingId}`,
+            public_id: fileName,
+            resource_type: 'auto'
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(buffer);
+      }) as any;
+
+      savedUrls.push(uploadResult.secure_url);
     }
 
     const printPhotosString = savedUrls.join(",");
