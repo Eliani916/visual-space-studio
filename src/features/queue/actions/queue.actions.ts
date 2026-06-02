@@ -66,12 +66,6 @@ export async function getActiveQueue() {
     const queues = await prisma.queue.findMany({
       where: {
         status: { in: ["WAITING", "IN_PROGRESS"] },
-        booking: {
-          bookingDate: {
-            gte: today,
-            lt: tomorrow,
-          }
-        }
       },
       include: {
         booking: {

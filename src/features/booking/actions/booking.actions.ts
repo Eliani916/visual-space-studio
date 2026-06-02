@@ -37,8 +37,16 @@ export async function createBooking(data: BookingInput) {
     }
     const settings = settingsRes.data;
 
-    // Validate opening hours
-    if (validatedData.bookingTime < settings.openingHour || validatedData.bookingTime > settings.closingHour) {
+    // Validate opening hours (handling midnight/next day)
+    const timeToMins = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+    const bookMins = timeToMins(validatedData.bookingTime);
+    const openMins = timeToMins(settings.openingHour);
+    let closeMins = timeToMins(settings.closingHour);
+    if (closeMins <= openMins) closeMins += 24 * 60;
+    
+    const normalizedBookMins = bookMins < openMins && bookMins < closeMins - 24 * 60 ? bookMins + 24 * 60 : bookMins;
+
+    if (normalizedBookMins < openMins || normalizedBookMins >= closeMins) {
       throw new Error(`Jam booking harus antara ${settings.openingHour} - ${settings.closingHour}`);
     }
 
@@ -226,11 +234,13 @@ export async function getAvailableTimes(dateStr: string) {
     
     // Generate all hourly slots from openingHour to closingHour
     const startHour = parseInt(settings.openingHour.split(":")[0]);
-    const endHour = parseInt(settings.closingHour.split(":")[0]);
+    let endHour = parseInt(settings.closingHour.split(":")[0]);
+    if (endHour <= startHour) endHour += 24;
+
     const allSlots = [];
     
     for (let h = startHour; h < endHour; h++) {
-      allSlots.push(`${h.toString().padStart(2, "0")}:00`);
+      allSlots.push(`${(h % 24).toString().padStart(2, "0")}:00`);
     }
 
     // Get active photographers count
@@ -269,7 +279,8 @@ export async function getCalendarBookingsStatus(year: number, month: number) {
 
     // Opening & closing hour bounds
     const startHour = parseInt(settings.openingHour.split(":")[0]);
-    const endHour = parseInt(settings.closingHour.split(":")[0]);
+    let endHour = parseInt(settings.closingHour.split(":")[0]);
+    if (endHour <= startHour) endHour += 24;
     
     // Total active photographers count
     const photographerCount = await prisma.photographerProfile.count({
