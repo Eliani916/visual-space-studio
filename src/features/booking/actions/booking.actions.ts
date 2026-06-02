@@ -234,7 +234,11 @@ export async function getAvailableTimes(dateStr: string) {
     
     // Generate all hourly slots from openingHour to closingHour
     const startHour = parseInt(settings.openingHour.split(":")[0]);
-    let endHour = parseInt(settings.closingHour.split(":")[0]);
+    const closeParts = settings.closingHour.split(":");
+    let endHour = parseInt(closeParts[0]);
+    if (parseInt(closeParts[1]) > 0) {
+      endHour += 1;
+    }
     if (endHour <= startHour) endHour += 24;
 
     const allSlots = [];
@@ -279,7 +283,11 @@ export async function getCalendarBookingsStatus(year: number, month: number) {
 
     // Opening & closing hour bounds
     const startHour = parseInt(settings.openingHour.split(":")[0]);
-    let endHour = parseInt(settings.closingHour.split(":")[0]);
+    const closeParts = settings.closingHour.split(":");
+    let endHour = parseInt(closeParts[0]);
+    if (parseInt(closeParts[1]) > 0) {
+      endHour += 1;
+    }
     if (endHour <= startHour) endHour += 24;
     
     // Total active photographers count
